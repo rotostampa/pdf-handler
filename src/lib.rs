@@ -89,8 +89,8 @@ pub fn split_pdf(pdf_data: &[u8], format: OutputFormat) -> Result<Vec<PageResult
             page_count: num_pages,
             data,
             format: match format {
-                OutputFormat::Pdf => "pdf".to_string(),
-                OutputFormat::Png => "png".to_string(),
+                OutputFormat::Pdf => "application/pdf".to_string(),
+                OutputFormat::Png => "image/png".to_string(),
             },
             media_box: BoxDimensions {
                 x: media_box.x0 as f32,
@@ -270,8 +270,8 @@ impl PdfSplitter {
             page_count: self.total_pages,
             data,
             format: match self.format {
-                OutputFormat::Pdf => "pdf".to_string(),
-                OutputFormat::Png => "png".to_string(),
+                OutputFormat::Pdf => "application/pdf".to_string(),
+                OutputFormat::Png => "image/png".to_string(),
             },
             media_box: BoxDimensions {
                 x: media_box.x0 as f32,

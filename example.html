@@ -53,15 +53,13 @@
             const results = document.getElementById("results");
             const links = document.getElementById("links");
 
-            function createBlobUrl(page, format) {
+            function createBlobUrl(page) {
                 const bytes = atob(page.data);
                 const array = new Uint8Array(bytes.length);
                 for (let i = 0; i < bytes.length; i++) {
                     array[i] = bytes.charCodeAt(i);
                 }
-                const mimeType =
-                    format === "png" ? "image/png" : "application/pdf";
-                const blob = new Blob([array], { type: mimeType });
+                const blob = new Blob([array], { type: page.format });
                 return URL.createObjectURL(blob);
             }
 
@@ -107,7 +105,7 @@
                         const page = splitter.next();
 
                         // Create and display the page immediately
-                        const blobUrl = createBlobUrl(page, format);
+                        const blobUrl = createBlobUrl(page);
                         const pageLink = document.createElement("p");
 
                         // Format box dimensions
@@ -115,7 +113,7 @@
                         const tb = page.trim_box;
                         const boxInfo = ` | MediaBox: ${mb.width.toFixed(1)}×${mb.height.toFixed(1)} | TrimBox: ${tb.width.toFixed(1)}×${tb.height.toFixed(1)}`;
 
-                        pageLink.innerHTML = `<a href="${blobUrl}" target="_blank">Page ${page.page_number}/${page.page_count} (${format})${boxInfo}</a>`;
+                        pageLink.innerHTML = `<a href="${blobUrl}" target="_blank">Page ${page.page_number}/${page.page_count} (${page.format})${boxInfo}</a>`;
                         links.appendChild(pageLink);
 
                         // Update progress
