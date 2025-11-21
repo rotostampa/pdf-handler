@@ -42,7 +42,7 @@
         </main>
 
         <script type="module">
-            import init, { split_pdf_from_url } from "./pkg/pdf_handler.js";
+            import init, { PdfSplitter } from "./pkg/pdf_handler.js";
 
             await init();
 
@@ -52,6 +52,18 @@
             const status = document.getElementById("status");
             const results = document.getElementById("results");
             const links = document.getElementById("links");
+
+            function createBlobUrl(page, format) {
+                const bytes = atob(page.data);
+                const array = new Uint8Array(bytes.length);
+                for (let i = 0; i < bytes.length; i++) {
+                    array[i] = bytes.charCodeAt(i);
+                }
+                const mimeType =
+                    format === "png" ? "image/png" : "application/pdf";
+                const blob = new Blob([array], { type: mimeType });
+                return URL.createObjectURL(blob);
+            }
 
             async function splitPdf(format) {
                 const url = urlInput.value.trim();
@@ -63,34 +75,54 @@
                 pdfBtn.disabled = true;
                 pngBtn.disabled = true;
                 status.innerHTML =
-                    '<mark aria-busy="true">Processing...</mark>';
+                    '<mark aria-busy="true">Initializing...</mark>';
                 results.style.display = "none";
                 links.innerHTML = "";
 
                 try {
-                    const pages = await split_pdf_from_url(url, format);
+                    // Fetch PDF bytes from URL
+                    status.innerHTML =
+                        '<mark aria-busy="true">Downloading PDF...</mark>';
+                    const response = await fetch(url);
+                    if (!response.ok) {
+                        throw new Error(
+                            `Failed to fetch PDF: HTTP ${response.status}`,
+                        );
+                    }
+                    const arrayBuffer = await response.arrayBuffer();
+                    const pdfBytes = new Uint8Array(arrayBuffer);
 
-                    // Create blob URLs for each page
-                    links.innerHTML = pages
-                        .map((page) => {
-                            const bytes = atob(page.data);
-                            const array = new Uint8Array(bytes.length);
-                            for (let i = 0; i < bytes.length; i++) {
-                                array[i] = bytes.charCodeAt(i);
-                            }
-                            const mimeType =
-                                format === "png"
-                                    ? "image/png"
-                                    : "application/pdf";
-                            const blob = new Blob([array], { type: mimeType });
-                            const blobUrl = URL.createObjectURL(blob);
+                    // Create the PDF splitter from bytes (streaming mode)
+                    status.innerHTML =
+                        '<mark aria-busy="true">Initializing...</mark>';
+                    const splitter = new PdfSplitter(pdfBytes, format);
+                    const totalPages = splitter.totalPages();
 
-                            return `<p><a href="${blobUrl}" target="_blank">Page ${page.page_number} (${format})</a></p>`;
-                        })
-                        .join("");
-
-                    status.innerHTML = `<mark>Successfully split ${pages.length} pages</mark>`;
+                    status.innerHTML = `<mark aria-busy="true">Processing page 0 of ${totalPages}...</mark>`;
                     results.style.display = "block";
+
+                    // Process pages one at a time as they become available
+                    while (splitter.hasNext()) {
+                        const currentPage = splitter.currentPage() + 1;
+                        const page = splitter.next();
+
+                        // Create and display the page immediately
+                        const blobUrl = createBlobUrl(page, format);
+                        const pageLink = document.createElement("p");
+                        pageLink.innerHTML = `<a href="${blobUrl}" target="_blank">Page ${page.page_number} (${format})</a>`;
+                        links.appendChild(pageLink);
+
+                        // Update progress
+                        const percentage = Math.round(
+                            (currentPage / totalPages) * 100,
+                        );
+                        status.innerHTML = `<mark aria-busy="true">Processing page ${currentPage} of ${totalPages} (${percentage}%)...</mark>`;
+
+                        // Allow UI to update between pages
+                        await new Promise((resolve) => setTimeout(resolve, 0));
+                    }
+
+                    status.innerHTML = `<mark>Successfully split ${totalPages} pages</mark>`;
                 } catch (error) {
                     status.innerHTML = `<mark style="background-color: var(--pico-del-color);">Error: ${error.message}</mark>`;
                 } finally {

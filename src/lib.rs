@@ -8,9 +8,6 @@ use tiny_skia::IntSize;
 #[cfg(feature = "wasm")]
 use wasm_bindgen::prelude::*;
 
-#[cfg(feature = "wasm")]
-use web_sys::{Request, RequestInit, RequestMode, Response};
-
 /// Output format for split pages
 #[derive(Debug, Clone, Copy)]
 #[cfg_attr(feature = "wasm", derive(serde::Deserialize))]
@@ -159,68 +156,94 @@ fn extract_page_png(
         .map_err(|e| format!("Failed to encode PNG: {}", e))
 }
 
-// WASM bindings
+// Streaming API for processing pages one at a time
 #[cfg(feature = "wasm")]
 #[wasm_bindgen]
-pub async fn split_pdf_from_url(url: String, format: String) -> Result<JsValue, JsValue> {
-    // Fetch the PDF from URL
-    let pdf_data = fetch_pdf(&url).await?;
-
-    // Parse format
-    let output_format = match format.to_lowercase().as_str() {
-        "pdf" => OutputFormat::Pdf,
-        "png" => OutputFormat::Png,
-        _ => return Err(JsValue::from_str("Invalid format. Use 'pdf' or 'png'")),
-    };
-
-    // Split the PDF
-    let results = split_pdf(&pdf_data, output_format).map_err(|e| JsValue::from_str(&e))?;
-
-    // Convert to JS
-    serde_wasm_bindgen::to_value(&results)
-        .map_err(|e| JsValue::from_str(&format!("Serialization error: {}", e)))
+pub struct PdfSplitter {
+    pdf: Arc<Pdf>,
+    format: OutputFormat,
+    current_page: usize,
+    total_pages: usize,
 }
 
 #[cfg(feature = "wasm")]
 #[wasm_bindgen]
-pub fn split_pdf_from_bytes(bytes: &[u8], format: String) -> Result<JsValue, JsValue> {
-    let output_format = match format.to_lowercase().as_str() {
-        "pdf" => OutputFormat::Pdf,
-        "png" => OutputFormat::Png,
-        _ => return Err(JsValue::from_str("Invalid format. Use 'pdf' or 'png'")),
-    };
+impl PdfSplitter {
+    /// Create a new splitter from PDF bytes
+    #[wasm_bindgen(constructor)]
+    pub fn new(bytes: &[u8], format: String) -> Result<PdfSplitter, JsValue> {
+        let output_format = match format.to_lowercase().as_str() {
+            "pdf" => OutputFormat::Pdf,
+            "png" => OutputFormat::Png,
+            _ => return Err(JsValue::from_str("Invalid format. Use 'pdf' or 'png'")),
+        };
 
-    let results = split_pdf(bytes, output_format).map_err(|e| JsValue::from_str(&e))?;
+        let pdf_data_arc = Arc::new(bytes.to_vec());
+        let pdf = Arc::new(
+            Pdf::new(pdf_data_arc)
+                .map_err(|e| JsValue::from_str(&format!("Failed to parse PDF: {:?}", e)))?,
+        );
 
-    serde_wasm_bindgen::to_value(&results)
-        .map_err(|e| JsValue::from_str(&format!("Serialization error: {}", e)))
-}
+        let total_pages = pdf.pages().len();
 
-#[cfg(feature = "wasm")]
-async fn fetch_pdf(url: &str) -> Result<Vec<u8>, JsValue> {
-    let mut opts = RequestInit::new();
-    opts.method("GET");
-    opts.mode(RequestMode::Cors);
-
-    let request = Request::new_with_str_and_init(url, &opts)?;
-
-    let window = web_sys::window().ok_or_else(|| JsValue::from_str("No window object"))?;
-    let resp_value =
-        wasm_bindgen_futures::JsFuture::from(window.fetch_with_request(&request)).await?;
-
-    let resp: Response = resp_value.dyn_into()?;
-
-    if !resp.ok() {
-        return Err(JsValue::from_str(&format!(
-            "Failed to fetch PDF: HTTP {}",
-            resp.status()
-        )));
+        Ok(PdfSplitter {
+            pdf,
+            format: output_format,
+            current_page: 0,
+            total_pages,
+        })
     }
 
-    let array_buffer = wasm_bindgen_futures::JsFuture::from(resp.array_buffer()?).await?;
-    let uint8_array = js_sys::Uint8Array::new(&array_buffer);
-    let mut bytes = vec![0; uint8_array.length() as usize];
-    uint8_array.copy_to(&mut bytes);
+    /// Get the total number of pages
+    #[wasm_bindgen(js_name = totalPages)]
+    pub fn total_pages(&self) -> usize {
+        self.total_pages
+    }
 
-    Ok(bytes)
+    /// Get the current page index (0-based)
+    #[wasm_bindgen(js_name = currentPage)]
+    pub fn current_page(&self) -> usize {
+        self.current_page
+    }
+
+    /// Check if there are more pages to process
+    #[wasm_bindgen(js_name = hasNext)]
+    pub fn has_next(&self) -> bool {
+        self.current_page < self.total_pages
+    }
+
+    /// Process and return the next page
+    #[wasm_bindgen]
+    pub fn next(&mut self) -> Result<JsValue, JsValue> {
+        if !self.has_next() {
+            return Err(JsValue::from_str("No more pages"));
+        }
+
+        let page = self.pdf.pages().get(self.current_page).ok_or_else(|| {
+            JsValue::from_str(&format!("Page {} not found", self.current_page + 1))
+        })?;
+
+        let (width, height) = page.render_dimensions();
+
+        let data = match self.format {
+            OutputFormat::Pdf => extract_page_pdf(&self.pdf, self.current_page, width, height)
+                .map_err(|e| JsValue::from_str(&e))?,
+            OutputFormat::Png => extract_page_png(&self.pdf, self.current_page, width, height)
+                .map_err(|e| JsValue::from_str(&e))?,
+        };
+
+        let result = PageResult {
+            page_number: self.current_page + 1,
+            data,
+            format: match self.format {
+                OutputFormat::Pdf => "pdf".to_string(),
+                OutputFormat::Png => "png".to_string(),
+            },
+        };
+
+        self.current_page += 1;
+
+        serde_wasm_bindgen::to_value(&result)
+            .map_err(|e| JsValue::from_str(&format!("Serialization error: {}", e)))
+    }
 }
