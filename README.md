@@ -1,22 +1,29 @@
 # pdf-handler
 
-A Rust CLI tool to split PDF files into individual pages using Typst's internal libraries.
+A Rust library and CLI tool to split PDF files into individual pages using Typst's internal libraries. Available as both a native binary and WebAssembly module.
 
 ## Features
 
 - Split PDF files into individual pages
 - **Output formats**: PDF or PNG (300 DPI)
+- **Deployment options**: Native CLI or WebAssembly (browser/Node.js)
 - Automatically names output files as `0001.pdf`/`0001.png`, `0002.pdf`/`0002.png`, etc.
 - Preserves page dimensions and content
 - Uses Typst's hayro-syntax, hayro, krilla, and tiny-skia libraries
 
 ## Installation
 
+### Native CLI
+
 ```bash
-cargo build --release
+cargo build --release --features cli
 ```
 
 The binary will be available at `target/release/pdf-handler`.
+
+### WebAssembly
+
+See [BUILD_WASM.md](BUILD_WASM.md) for detailed instructions on building for WebAssembly.
 
 ## Usage
 
