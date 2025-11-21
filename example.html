@@ -1,366 +1,439 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PDF Handler WASM Demo</title>
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>PDF Handler WASM Demo</title>
+        <style>
+            * {
+                margin: 0;
+                padding: 0;
+                box-sizing: border-box;
+            }
 
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-            padding: 2rem;
-            max-width: 1200px;
-            margin: 0 auto;
-            background: #f5f5f5;
-        }
+            body {
+                font-family:
+                    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+                    Oxygen, Ubuntu, Cantarell, sans-serif;
+                padding: 2rem;
+                max-width: 1200px;
+                margin: 0 auto;
+                background: #f5f5f5;
+            }
 
-        h1 {
-            color: #333;
-            margin-bottom: 0.5rem;
-        }
+            h1 {
+                color: #333;
+                margin-bottom: 0.5rem;
+            }
 
-        .subtitle {
-            color: #666;
-            margin-bottom: 2rem;
-        }
+            .subtitle {
+                color: #666;
+                margin-bottom: 2rem;
+            }
 
-        .container {
-            background: white;
-            padding: 2rem;
-            border-radius: 8px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-            margin-bottom: 2rem;
-        }
+            .container {
+                background: white;
+                padding: 2rem;
+                border-radius: 8px;
+                box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+                margin-bottom: 2rem;
+            }
 
-        .input-group {
-            margin-bottom: 1.5rem;
-        }
+            .input-group {
+                margin-bottom: 1.5rem;
+            }
 
-        label {
-            display: block;
-            margin-bottom: 0.5rem;
-            font-weight: 600;
-            color: #444;
-        }
+            label {
+                display: block;
+                margin-bottom: 0.5rem;
+                font-weight: 600;
+                color: #444;
+            }
 
-        input[type="text"],
-        input[type="file"] {
-            width: 100%;
-            padding: 0.75rem;
-            border: 2px solid #ddd;
-            border-radius: 4px;
-            font-size: 1rem;
-        }
+            input[type="text"],
+            input[type="file"] {
+                width: 100%;
+                padding: 0.75rem;
+                border: 2px solid #ddd;
+                border-radius: 4px;
+                font-size: 1rem;
+            }
 
-        input[type="text"]:focus,
-        input[type="file"]:focus {
-            outline: none;
-            border-color: #4CAF50;
-        }
+            input[type="text"]:focus,
+            input[type="file"]:focus {
+                outline: none;
+                border-color: #4caf50;
+            }
 
-        .format-selector {
-            display: flex;
-            gap: 1rem;
-            margin-bottom: 1rem;
-        }
+            .format-selector {
+                display: flex;
+                gap: 1rem;
+                margin-bottom: 1rem;
+            }
 
-        .format-selector label {
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-            cursor: pointer;
-            font-weight: normal;
-        }
+            .format-selector label {
+                display: flex;
+                align-items: center;
+                gap: 0.5rem;
+                cursor: pointer;
+                font-weight: normal;
+            }
 
-        button {
-            background: #4CAF50;
-            color: white;
-            border: none;
-            padding: 0.75rem 2rem;
-            font-size: 1rem;
-            border-radius: 4px;
-            cursor: pointer;
-            transition: background 0.3s;
-        }
+            button {
+                background: #4caf50;
+                color: white;
+                border: none;
+                padding: 0.75rem 2rem;
+                font-size: 1rem;
+                border-radius: 4px;
+                cursor: pointer;
+                transition: background 0.3s;
+            }
 
-        button:hover {
-            background: #45a049;
-        }
+            button:hover {
+                background: #45a049;
+            }
 
-        button:disabled {
-            background: #ccc;
-            cursor: not-allowed;
-        }
+            button:disabled {
+                background: #ccc;
+                cursor: not-allowed;
+            }
 
-        .status {
-            margin-top: 1rem;
-            padding: 1rem;
-            border-radius: 4px;
-            display: none;
-        }
+            .status {
+                margin-top: 1rem;
+                padding: 1rem;
+                border-radius: 4px;
+                display: none;
+            }
 
-        .status.loading {
-            display: block;
-            background: #e3f2fd;
-            color: #1976d2;
-        }
+            .status.loading {
+                display: block;
+                background: #e3f2fd;
+                color: #1976d2;
+            }
 
-        .status.success {
-            display: block;
-            background: #e8f5e9;
-            color: #2e7d32;
-        }
+            .status.success {
+                display: block;
+                background: #e8f5e9;
+                color: #2e7d32;
+            }
 
-        .status.error {
-            display: block;
-            background: #ffebee;
-            color: #c62828;
-        }
+            .status.error {
+                display: block;
+                background: #ffebee;
+                color: #c62828;
+            }
 
-        .results {
-            margin-top: 2rem;
-        }
+            .results {
+                margin-top: 2rem;
+            }
 
-        .result-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-            gap: 1rem;
-            margin-top: 1rem;
-        }
+            .result-grid {
+                display: grid;
+                grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+                gap: 1rem;
+                margin-top: 1rem;
+            }
 
-        .result-item {
-            border: 2px solid #ddd;
-            border-radius: 4px;
-            padding: 1rem;
-            text-align: center;
-            background: #fafafa;
-        }
+            .result-item {
+                border: 2px solid #ddd;
+                border-radius: 4px;
+                padding: 1rem;
+                text-align: center;
+                background: #fafafa;
+            }
 
-        .result-item img {
-            max-width: 100%;
-            height: auto;
-            border-radius: 4px;
-            margin-bottom: 0.5rem;
-        }
+            .result-item img {
+                max-width: 100%;
+                height: auto;
+                border-radius: 4px;
+                margin-bottom: 0.5rem;
+            }
 
-        .result-item button {
-            width: 100%;
-            padding: 0.5rem;
-            font-size: 0.9rem;
-        }
+            .result-item button {
+                width: 100%;
+                padding: 0.5rem;
+                font-size: 0.9rem;
+            }
 
-        .page-number {
-            font-weight: 600;
-            margin-bottom: 0.5rem;
-            color: #666;
-        }
-    </style>
-</head>
-<body>
-    <h1>📄 PDF Handler WASM Demo</h1>
-    <p class="subtitle">Split PDF files into individual pages using WebAssembly</p>
+            .page-number {
+                font-weight: 600;
+                margin-bottom: 0.5rem;
+                color: #666;
+            }
+        </style>
+    </head>
+    <body>
+        <h1>📄 PDF Handler WASM Demo</h1>
+        <p class="subtitle">
+            Split PDF files into individual pages using WebAssembly
+        </p>
 
-    <div class="container">
-        <h2>Split from URL</h2>
-        <div class="input-group">
-            <label for="pdf-url">PDF URL:</label>
-            <input
-                type="text"
-                id="pdf-url"
-                placeholder="https://example.com/document.pdf"
-                value="https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf"
-            >
+        <div
+            class="container"
+            style="background: #fff3cd; border-left: 4px solid #ffc107"
+        >
+            <h3 style="margin-bottom: 0.5rem; color: #856404">
+                ⚠️ Setup Required
+            </h3>
+            <p style="color: #856404; margin: 0">
+                To use this demo, you must first build the WASM package. See
+                <strong>QUICKSTART.md</strong> for instructions.
+            </p>
+            <details style="margin-top: 1rem">
+                <summary
+                    style="cursor: pointer; font-weight: 600; color: #856404"
+                >
+                    Quick Instructions
+                </summary>
+                <pre
+                    style="
+                        background: white;
+                        padding: 1rem;
+                        border-radius: 4px;
+                        margin-top: 0.5rem;
+                        overflow-x: auto;
+                    "
+                >
+# 1. Build WASM
+wasm-pack build --target web --features wasm --no-default-features
+
+# 2. Start HTTP server
+python3 -m http.server 8000
+
+# 3. Open http://localhost:8000/example.html</pre
+                >
+            </details>
         </div>
 
-        <div class="input-group">
-            <label>Output Format:</label>
-            <div class="format-selector">
-                <label>
-                    <input type="radio" name="format-url" value="pdf" checked>
-                    PDF
-                </label>
-                <label>
-                    <input type="radio" name="format-url" value="png">
-                    PNG (300 DPI)
-                </label>
+        <div class="container">
+            <h2>Split from URL</h2>
+            <div class="input-group">
+                <label for="pdf-url">PDF URL:</label>
+                <input
+                    type="text"
+                    id="pdf-url"
+                    placeholder="https://example.com/document.pdf"
+                    value="https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf"
+                />
             </div>
-        </div>
 
-        <button id="split-url-btn">Split PDF from URL</button>
-        <div class="status" id="url-status"></div>
-    </div>
-
-    <div class="container">
-        <h2>Split from File</h2>
-        <div class="input-group">
-            <label for="pdf-file">Choose PDF File:</label>
-            <input type="file" id="pdf-file" accept=".pdf">
-        </div>
-
-        <div class="input-group">
-            <label>Output Format:</label>
-            <div class="format-selector">
-                <label>
-                    <input type="radio" name="format-file" value="pdf" checked>
-                    PDF
-                </label>
-                <label>
-                    <input type="radio" name="format-file" value="png">
-                    PNG (300 DPI)
-                </label>
+            <div class="input-group">
+                <label>Output Format:</label>
+                <div class="format-selector">
+                    <label>
+                        <input
+                            type="radio"
+                            name="format-url"
+                            value="pdf"
+                            checked
+                        />
+                        PDF
+                    </label>
+                    <label>
+                        <input type="radio" name="format-url" value="png" />
+                        PNG (300 DPI)
+                    </label>
+                </div>
             </div>
+
+            <button id="split-url-btn">Split PDF from URL</button>
+            <div class="status" id="url-status"></div>
         </div>
 
-        <button id="split-file-btn" disabled>Split PDF from File</button>
-        <div class="status" id="file-status"></div>
-    </div>
+        <div class="container">
+            <h2>Split from File</h2>
+            <div class="input-group">
+                <label for="pdf-file">Choose PDF File:</label>
+                <input type="file" id="pdf-file" accept=".pdf" />
+            </div>
 
-    <div class="container results" id="results" style="display: none;">
-        <h2>Results</h2>
-        <p>Click on a page to download it:</p>
-        <div class="result-grid" id="result-grid"></div>
-    </div>
+            <div class="input-group">
+                <label>Output Format:</label>
+                <div class="format-selector">
+                    <label>
+                        <input
+                            type="radio"
+                            name="format-file"
+                            value="pdf"
+                            checked
+                        />
+                        PDF
+                    </label>
+                    <label>
+                        <input type="radio" name="format-file" value="png" />
+                        PNG (300 DPI)
+                    </label>
+                </div>
+            </div>
 
-    <script type="module">
-        // This is a placeholder - in production, you'd import from the built WASM package
-        // import init, { split_pdf_from_url, split_pdf_from_bytes } from './pkg/pdf_handler.js';
+            <button id="split-file-btn" disabled>Split PDF from File</button>
+            <div class="status" id="file-status"></div>
+        </div>
 
-        // Mock implementation for demonstration
-        console.log('WASM module would be initialized here');
-        console.log('To use this demo:');
-        console.log('1. Build the WASM package: wasm-pack build --target web --features wasm --no-default-features');
-        console.log('2. Uncomment the import above');
-        console.log('3. Serve this file with a local HTTP server');
+        <div class="container results" id="results" style="display: none">
+            <h2>Results</h2>
+            <p>Click on a page to download it:</p>
+            <div class="result-grid" id="result-grid"></div>
+        </div>
 
-        const urlBtn = document.getElementById('split-url-btn');
-        const fileBtn = document.getElementById('split-file-btn');
-        const fileInput = document.getElementById('pdf-file');
-        const urlStatus = document.getElementById('url-status');
-        const fileStatus = document.getElementById('file-status');
-        const resultsDiv = document.getElementById('results');
-        const resultGrid = document.getElementById('result-grid');
+        <script type="module">
+            // This is a placeholder - in production, you'd import from the built WASM package
+            // import init, { split_pdf_from_url, split_pdf_from_bytes } from './pkg/pdf_handler.js';
 
-        fileInput.addEventListener('change', (e) => {
-            fileBtn.disabled = !e.target.files.length;
-        });
+            // Mock implementation for demonstration
+            console.log("WASM module would be initialized here");
+            console.log("To use this demo:");
+            console.log(
+                "1. Build the WASM package: wasm-pack build --target web --features wasm --no-default-features",
+            );
+            console.log("2. Uncomment the import above");
+            console.log("3. Serve this file with a local HTTP server");
 
-        function showStatus(element, type, message) {
-            element.className = `status ${type}`;
-            element.textContent = message;
-        }
+            const urlBtn = document.getElementById("split-url-btn");
+            const fileBtn = document.getElementById("split-file-btn");
+            const fileInput = document.getElementById("pdf-file");
+            const urlStatus = document.getElementById("url-status");
+            const fileStatus = document.getElementById("file-status");
+            const resultsDiv = document.getElementById("results");
+            const resultGrid = document.getElementById("result-grid");
 
-        function downloadBlob(blob, filename) {
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = filename;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
-        }
+            fileInput.addEventListener("change", (e) => {
+                fileBtn.disabled = !e.target.files.length;
+            });
 
-        function displayResults(results) {
-            resultsDiv.style.display = 'block';
-            resultGrid.innerHTML = '';
+            function showStatus(element, type, message) {
+                element.className = `status ${type}`;
+                element.textContent = message;
+            }
 
-            results.forEach(result => {
-                const item = document.createElement('div');
-                item.className = 'result-item';
+            function downloadBlob(blob, filename) {
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement("a");
+                a.href = url;
+                a.download = filename;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+            }
 
-                const pageNum = document.createElement('div');
-                pageNum.className = 'page-number';
-                pageNum.textContent = `Page ${result.page_number}`;
-                item.appendChild(pageNum);
+            function displayResults(results) {
+                resultsDiv.style.display = "block";
+                resultGrid.innerHTML = "";
 
-                // Show thumbnail for PNG
-                if (result.format === 'png') {
-                    const img = document.createElement('img');
-                    img.src = `data:image/png;base64,${result.data}`;
-                    img.alt = `Page ${result.page_number}`;
-                    item.appendChild(img);
+                results.forEach((result) => {
+                    const item = document.createElement("div");
+                    item.className = "result-item";
+
+                    const pageNum = document.createElement("div");
+                    pageNum.className = "page-number";
+                    pageNum.textContent = `Page ${result.page_number}`;
+                    item.appendChild(pageNum);
+
+                    // Show thumbnail for PNG
+                    if (result.format === "png") {
+                        const img = document.createElement("img");
+                        img.src = `data:image/png;base64,${result.data}`;
+                        img.alt = `Page ${result.page_number}`;
+                        item.appendChild(img);
+                    }
+
+                    const downloadBtn = document.createElement("button");
+                    downloadBtn.textContent = `Download ${result.format.toUpperCase()}`;
+                    downloadBtn.onclick = () => {
+                        const bytes = atob(result.data);
+                        const byteArray = new Uint8Array(bytes.length);
+                        for (let i = 0; i < bytes.length; i++) {
+                            byteArray[i] = bytes.charCodeAt(i);
+                        }
+                        const mimeType =
+                            result.format === "png"
+                                ? "image/png"
+                                : "application/pdf";
+                        const blob = new Blob([byteArray], { type: mimeType });
+                        downloadBlob(
+                            blob,
+                            `page-${result.page_number}.${result.format}`,
+                        );
+                    };
+                    item.appendChild(downloadBtn);
+
+                    resultGrid.appendChild(item);
+                });
+            }
+
+            urlBtn.addEventListener("click", async () => {
+                const url = document.getElementById("pdf-url").value;
+                const format = document.querySelector(
+                    'input[name="format-url"]:checked',
+                ).value;
+
+                if (!url) {
+                    showStatus(urlStatus, "error", "Please enter a PDF URL");
+                    return;
                 }
 
-                const downloadBtn = document.createElement('button');
-                downloadBtn.textContent = `Download ${result.format.toUpperCase()}`;
-                downloadBtn.onclick = () => {
-                    const bytes = atob(result.data);
-                    const byteArray = new Uint8Array(bytes.length);
-                    for (let i = 0; i < bytes.length; i++) {
-                        byteArray[i] = bytes.charCodeAt(i);
-                    }
-                    const mimeType = result.format === 'png' ? 'image/png' : 'application/pdf';
-                    const blob = new Blob([byteArray], { type: mimeType });
-                    downloadBlob(blob, `page-${result.page_number}.${result.format}`);
-                };
-                item.appendChild(downloadBtn);
+                urlBtn.disabled = true;
+                showStatus(
+                    urlStatus,
+                    "loading",
+                    "Fetching and processing PDF...",
+                );
 
-                resultGrid.appendChild(item);
+                try {
+                    // In production, this would call the WASM function:
+                    // const results = await split_pdf_from_url(url, format);
+
+                    // Mock implementation
+                    throw new Error(
+                        "WASM module not loaded. Build the project first!",
+                    );
+
+                    // displayResults(results);
+                    // showStatus(urlStatus, 'success', `Successfully split PDF into ${results.length} pages`);
+                } catch (error) {
+                    showStatus(urlStatus, "error", `Error: ${error.message}`);
+                } finally {
+                    urlBtn.disabled = false;
+                }
             });
-        }
 
-        urlBtn.addEventListener('click', async () => {
-            const url = document.getElementById('pdf-url').value;
-            const format = document.querySelector('input[name="format-url"]:checked').value;
+            fileBtn.addEventListener("click", async () => {
+                const file = fileInput.files[0];
+                const format = document.querySelector(
+                    'input[name="format-file"]:checked',
+                ).value;
 
-            if (!url) {
-                showStatus(urlStatus, 'error', 'Please enter a PDF URL');
-                return;
-            }
+                fileBtn.disabled = true;
+                showStatus(fileStatus, "loading", "Processing PDF...");
 
-            urlBtn.disabled = true;
-            showStatus(urlStatus, 'loading', 'Fetching and processing PDF...');
+                try {
+                    const arrayBuffer = await file.arrayBuffer();
+                    const bytes = new Uint8Array(arrayBuffer);
 
-            try {
-                // In production, this would call the WASM function:
-                // const results = await split_pdf_from_url(url, format);
+                    // In production, this would call the WASM function:
+                    // const results = await split_pdf_from_bytes(bytes, format);
 
-                // Mock implementation
-                throw new Error('WASM module not loaded. Build the project first!');
+                    // Mock implementation
+                    throw new Error(
+                        "WASM module not loaded. Build the project first!",
+                    );
 
-                // displayResults(results);
-                // showStatus(urlStatus, 'success', `Successfully split PDF into ${results.length} pages`);
-            } catch (error) {
-                showStatus(urlStatus, 'error', `Error: ${error.message}`);
-            } finally {
-                urlBtn.disabled = false;
-            }
-        });
+                    // displayResults(results);
+                    // showStatus(fileStatus, 'success', `Successfully split PDF into ${results.length} pages`);
+                } catch (error) {
+                    showStatus(fileStatus, "error", `Error: ${error.message}`);
+                } finally {
+                    fileBtn.disabled = false;
+                }
+            });
 
-        fileBtn.addEventListener('click', async () => {
-            const file = fileInput.files[0];
-            const format = document.querySelector('input[name="format-file"]:checked').value;
-
-            fileBtn.disabled = true;
-            showStatus(fileStatus, 'loading', 'Processing PDF...');
-
-            try {
-                const arrayBuffer = await file.arrayBuffer();
-                const bytes = new Uint8Array(arrayBuffer);
-
-                // In production, this would call the WASM function:
-                // const results = await split_pdf_from_bytes(bytes, format);
-
-                // Mock implementation
-                throw new Error('WASM module not loaded. Build the project first!');
-
-                // displayResults(results);
-                // showStatus(fileStatus, 'success', `Successfully split PDF into ${results.length} pages`);
-            } catch (error) {
-                showStatus(fileStatus, 'error', `Error: ${error.message}`);
-            } finally {
-                fileBtn.disabled = false;
-            }
-        });
-
-        // Initialize WASM module
-        // await init();
-        console.log('Demo page loaded. WASM functionality requires building the project first.');
-    </script>
-</body>
+            // Initialize WASM module
+            // await init();
+            console.log(
+                "Demo page loaded. WASM functionality requires building the project first.",
+            );
+        </script>
+    </body>
 </html>
