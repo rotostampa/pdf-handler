@@ -16,14 +16,27 @@ pub enum OutputFormat {
     Png,
 }
 
+/// Box dimensions for a PDF page
+#[derive(Debug, Clone)]
+#[cfg_attr(feature = "wasm", derive(serde::Serialize))]
+pub struct BoxDimensions {
+    pub x: f32,
+    pub y: f32,
+    pub width: f32,
+    pub height: f32,
+}
+
 /// Result of splitting a single page
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "wasm", derive(serde::Serialize))]
 pub struct PageResult {
     pub page_number: usize,
+    pub page_count: usize,
     #[cfg_attr(feature = "wasm", serde(with = "serde_bytes"))]
     pub data: Vec<u8>,
     pub format: String,
+    pub media_box: BoxDimensions,
+    pub trim_box: BoxDimensions,
 }
 
 #[cfg(feature = "wasm")]
@@ -68,12 +81,28 @@ pub fn split_pdf(pdf_data: &[u8], format: OutputFormat) -> Result<Vec<PageResult
             OutputFormat::Png => extract_page_png(&pdf, i, width, height)?,
         };
 
+        let media_box = page.media_box();
+        let trim_box_rect = page.crop_box();
+
         results.push(PageResult {
             page_number: i + 1,
+            page_count: num_pages,
             data,
             format: match format {
                 OutputFormat::Pdf => "pdf".to_string(),
                 OutputFormat::Png => "png".to_string(),
+            },
+            media_box: BoxDimensions {
+                x: media_box.x0 as f32,
+                y: media_box.y0 as f32,
+                width: media_box.width() as f32,
+                height: media_box.height() as f32,
+            },
+            trim_box: BoxDimensions {
+                x: trim_box_rect.x0 as f32,
+                y: trim_box_rect.y0 as f32,
+                width: trim_box_rect.width() as f32,
+                height: trim_box_rect.height() as f32,
             },
         });
     }
@@ -232,12 +261,29 @@ impl PdfSplitter {
                 .map_err(|e| JsValue::from_str(&e))?,
         };
 
+        // Extract box dimensions
+        let media_box = page.media_box();
+        let trim_box_rect = page.crop_box(); // Use crop_box as trim_box fallback
+
         let result = PageResult {
             page_number: self.current_page + 1,
+            page_count: self.total_pages,
             data,
             format: match self.format {
                 OutputFormat::Pdf => "pdf".to_string(),
                 OutputFormat::Png => "png".to_string(),
+            },
+            media_box: BoxDimensions {
+                x: media_box.x0 as f32,
+                y: media_box.y0 as f32,
+                width: media_box.width() as f32,
+                height: media_box.height() as f32,
+            },
+            trim_box: BoxDimensions {
+                x: trim_box_rect.x0 as f32,
+                y: trim_box_rect.y0 as f32,
+                width: trim_box_rect.width() as f32,
+                height: trim_box_rect.height() as f32,
             },
         };
 

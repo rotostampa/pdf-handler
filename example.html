@@ -109,7 +109,13 @@
                         // Create and display the page immediately
                         const blobUrl = createBlobUrl(page, format);
                         const pageLink = document.createElement("p");
-                        pageLink.innerHTML = `<a href="${blobUrl}" target="_blank">Page ${page.page_number} (${format})</a>`;
+
+                        // Format box dimensions
+                        const mb = page.media_box;
+                        const tb = page.trim_box;
+                        const boxInfo = ` | MediaBox: ${mb.width.toFixed(1)}×${mb.height.toFixed(1)} | TrimBox: ${tb.width.toFixed(1)}×${tb.height.toFixed(1)}`;
+
+                        pageLink.innerHTML = `<a href="${blobUrl}" target="_blank">Page ${page.page_number}/${page.page_count} (${format})${boxInfo}</a>`;
                         links.appendChild(pageLink);
 
                         // Update progress
