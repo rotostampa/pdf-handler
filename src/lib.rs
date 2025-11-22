@@ -63,7 +63,11 @@ mod serde_bytes {
 }
 
 /// Split a PDF into individual pages
-pub fn split_pdf(pdf_data: &[u8], format: OutputFormat) -> Result<Vec<PageResult>, String> {
+pub fn split_pdf(
+    pdf_data: &[u8],
+    format: OutputFormat,
+    dpi: u32,
+) -> Result<Vec<PageResult>, String> {
     // Load the PDF using hayro-syntax
     let pdf_data_arc = Arc::new(pdf_data.to_vec());
     let pdf =
@@ -78,7 +82,7 @@ pub fn split_pdf(pdf_data: &[u8], format: OutputFormat) -> Result<Vec<PageResult
 
         let data = match format {
             OutputFormat::Pdf => extract_page_pdf(&pdf, i, width, height)?,
-            OutputFormat::Png => extract_page_png(&pdf, i, width, height)?,
+            OutputFormat::Png => extract_page_png(&pdf, i, width, height, dpi)?,
         };
 
         let media_box = page.media_box();
@@ -141,10 +145,10 @@ fn extract_page_png(
     page_index: usize,
     width: f32,
     height: f32,
+    dpi: u32,
 ) -> Result<Vec<u8>, String> {
-    const DPI: f32 = 300.0;
     const POINTS_PER_INCH: f32 = 72.0;
-    let pixel_per_pt = DPI / POINTS_PER_INCH;
+    let pixel_per_pt = dpi as f32 / POINTS_PER_INCH;
 
     let out_width = (width * pixel_per_pt).round() as u32;
     let out_height = (height * pixel_per_pt).round() as u32;
@@ -193,6 +197,7 @@ pub struct PdfSplitter {
     format: OutputFormat,
     current_page: usize,
     total_pages: usize,
+    dpi: u32,
 }
 
 #[cfg(feature = "wasm")]
@@ -200,7 +205,7 @@ pub struct PdfSplitter {
 impl PdfSplitter {
     /// Create a new splitter from PDF bytes
     #[wasm_bindgen(constructor)]
-    pub fn new(bytes: &[u8], format: String) -> Result<PdfSplitter, JsValue> {
+    pub fn new(bytes: &[u8], format: String, dpi: Option<u32>) -> Result<PdfSplitter, JsValue> {
         let output_format = match format.to_lowercase().as_str() {
             "pdf" => OutputFormat::Pdf,
             "png" => OutputFormat::Png,
@@ -220,6 +225,7 @@ impl PdfSplitter {
             format: output_format,
             current_page: 0,
             total_pages,
+            dpi: dpi.unwrap_or(300),
         })
     }
 
@@ -257,8 +263,10 @@ impl PdfSplitter {
         let data = match self.format {
             OutputFormat::Pdf => extract_page_pdf(&self.pdf, self.current_page, width, height)
                 .map_err(|e| JsValue::from_str(&e))?,
-            OutputFormat::Png => extract_page_png(&self.pdf, self.current_page, width, height)
-                .map_err(|e| JsValue::from_str(&e))?,
+            OutputFormat::Png => {
+                extract_page_png(&self.pdf, self.current_page, width, height, self.dpi)
+                    .map_err(|e| JsValue::from_str(&e))?
+            }
         };
 
         // Extract box dimensions

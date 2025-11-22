@@ -8,7 +8,7 @@ use std::path::PathBuf;
 enum OutputFormat {
     /// Output as PDF files
     Pdf,
-    /// Output as PNG images (300 DPI)
+    /// Output as PNG images
     Png,
 }
 
@@ -28,6 +28,10 @@ struct Args {
     /// Output format (pdf or png)
     #[arg(short, long, value_enum, default_value = "pdf")]
     format: OutputFormat,
+
+    /// DPI for PNG output (only used with --format png)
+    #[arg(long, default_value = "300")]
+    dpi: u32,
 }
 
 fn main() -> Result<()> {
@@ -44,8 +48,8 @@ fn main() -> Result<()> {
     };
 
     // Split the PDF using the library
-    let results =
-        pdf_handler::split_pdf(&pdf_data, lib_format).map_err(|e| anyhow::anyhow!("{}", e))?;
+    let results = pdf_handler::split_pdf(&pdf_data, lib_format, args.dpi)
+        .map_err(|e| anyhow::anyhow!("{}", e))?;
 
     println!("PDF has {} page(s)", results.len());
 
@@ -59,7 +63,13 @@ fn main() -> Result<()> {
 
     // Write each page to disk
     for result in &results {
-        let extension = &result.format;
+        // Convert MIME type to file extension
+        let extension = match result.format.as_str() {
+            "application/pdf" => "pdf",
+            "image/png" => "png",
+            _ => "bin",
+        };
+
         let output_filename = format!("{:04}.{}", result.page_number, extension);
         let output_path = args.output.join(&output_filename);
 
