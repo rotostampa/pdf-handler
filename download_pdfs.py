@@ -32,18 +32,29 @@ except ImportError as e:
     sys.exit(1)
 
 
-def hash_content(content: bytes) -> str:
-    """Create a SHA256 hash of the content."""
-    return hashlib.sha256(content).hexdigest()
+def hash_url(url: str) -> str:
+    """Create a SHA256 hash of the URL."""
+    return hashlib.sha256(url.encode()).hexdigest()
 
 
 def download_pdf(url: str, output_dir: Path) -> tuple[bool, str]:
     """
-    Download a PDF from URL, hash its content, and save with hash as filename.
+    Download a PDF from URL to temp file, then move to final location.
 
     Returns:
-        (success: bool, filename: str)
+        (success: bool, status: str)
     """
+    # Generate filename from URL hash
+    url_hash = hash_url(url)
+    final_filename = f"{url_hash}.pdf"
+    final_path = output_dir / final_filename
+
+    # Skip if file already exists
+    if final_path.exists():
+        file_size = final_path.stat().st_size
+        print(f"  ⊙ Already exists: {final_filename} ({file_size:,} bytes)")
+        return True, "skipped"
+
     tmp_path = None
     try:
         print(f"Downloading: {url[:80]}...")
@@ -53,16 +64,6 @@ def download_pdf(url: str, output_dir: Path) -> tuple[bool, str]:
             response.raise_for_status()
 
             content = response.content
-
-        # Hash the content
-        content_hash = hash_content(content)
-        final_filename = f"{content_hash}.pdf"
-        final_path = output_dir / final_filename
-
-        # Check if file already exists with this hash
-        if final_path.exists():
-            print(f"  ⊙ Already exists (same content): {final_filename}")
-            return True, final_filename
 
         # Download to temp file first
         with tempfile.NamedTemporaryFile(mode='wb', delete=False, suffix='.pdf') as tmp:
@@ -75,14 +76,14 @@ def download_pdf(url: str, output_dir: Path) -> tuple[bool, str]:
 
         file_size = final_path.stat().st_size
         print(f"  ✓ Saved as {final_filename} ({file_size:,} bytes)")
-        return True, final_filename
+        return True, "downloaded"
 
     except httpx.HTTPError as e:
         print(f"  ✗ HTTP error: {e}")
-        return False, ""
+        return False, "failed"
     except Exception as e:
         print(f"  ✗ Error: {e}")
-        return False, ""
+        return False, "failed"
     finally:
         # Clean up temp file if it still exists
         if tmp_path and tmp_path.exists():
@@ -147,22 +148,20 @@ def main():
     print()
 
     # Download PDFs
-    successful = 0
-    failed = 0
+    downloaded = 0
     skipped = 0
+    failed = 0
 
     for i, url in enumerate(urls, 1):
         print(f"[{i}/{len(urls)}]", end=" ")
 
-        success, filename = download_pdf(url, args.output)
+        success, status = download_pdf(url, args.output)
 
         if success:
-            if "Already exists" in filename or filename:
-                # Check if it was a skip (already exists)
-                if "Already exists" not in str(success):
-                    successful += 1
-                else:
-                    skipped += 1
+            if status == "downloaded":
+                downloaded += 1
+            elif status == "skipped":
+                skipped += 1
         else:
             failed += 1
 
@@ -173,8 +172,8 @@ def main():
     print("SUMMARY")
     print("=" * 80)
     print(f"Total URLs: {len(urls)}")
-    print(f"Successfully downloaded: {successful}")
-    print(f"Already existed (same content hash): {skipped}")
+    print(f"Successfully downloaded: {downloaded}")
+    print(f"Already existed (skipped): {skipped}")
     print(f"Failed: {failed}")
 
     if failed > 0:
